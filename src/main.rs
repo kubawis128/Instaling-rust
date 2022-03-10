@@ -10,23 +10,33 @@ extern crate colored;
 // Choose what functions would we use
 use rustlate::{self, Translator};
 use colored::Colorize;
+use std::fs::File;
+use std::io::Read;
 use std::{collections::HashMap, time::SystemTime};
 use std::{thread, time};
 use crate::config_manager::get_from_config;
 
-// Main function
 fn main() {
-
+    let debug = false;
     println!("{}","Starting Instaling rust bot".blue().bold());
 
     // Read config file
     config_manager::load_config();
 
     // Init translator
-    let translator_struct = Translator{to: "de",from: "pl"}; // TODO: implement reading from config (I'm too stupid for this) smth like: get_from_config("translator","from") and get_from_config("translator","to")
+    let translator_struct = Translator{to: config_manager::get_from_config_static("translator","to"),from: config_manager::get_from_config_static("translator","from")}; // TODO: implement reading from config (I'm too stupid for this) smth like: get_from_config("translator","from") and get_from_config("translator","to")
 
-    // Create client
-    let client = reqwest::blocking::Client::builder()
+    let client;
+    if debug == true{
+        let mut buf = Vec::new();
+        File::open("cacert.der").unwrap().read_to_end(&mut buf).unwrap();
+        let cert = reqwest::Certificate::from_der(&buf).unwrap();
+        let raw_proxy = format!("http://127.0.0.1:8080");
+        let proxy = reqwest::Proxy::all(&raw_proxy).unwrap();
+
+         client = reqwest::blocking::Client::builder()
+        .add_root_certificate(cert)
+        .proxy(proxy)
         .cookie_store(true)
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
@@ -34,6 +44,18 @@ fn main() {
         }))
         .build()
         .unwrap();
+    }else{
+        client = reqwest::blocking::Client::builder()
+        .cookie_store(true)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            attempt.stop()
+        }))
+        .build()
+        .unwrap();
+    }
+    // Create client
+    
 
     // Get basic cookies
     client.get("https://instaling.pl/teacher.php?page=login").send().unwrap();
@@ -61,7 +83,12 @@ fn main() {
         .send()
         .unwrap();
 
-    let student_id = res.headers().values().nth(9).unwrap().to_str().unwrap().split("=").nth(1).unwrap();
+    // Some debug information
+    if debug{
+        println!("{:?}",res.headers());
+    }
+    
+    let student_id = res.headers().values().find(|&x| x.to_str().unwrap().contains("student_id")).unwrap().to_str().unwrap().split("=").nth(1).unwrap();
 
     // Idk if it is needed
     client.get("https://instaling.pl:443/student/pages/mainPage.php?student_id=".to_string() + student_id)
@@ -119,7 +146,11 @@ fn main() {
         // Get usage example and try to find it in dictionary
         let example_use =  parsed["usage_example"].to_string();
         let read_from_dictionary = dictionary::read_from_dict(example_use.clone());
-        
+        println!("{}{}","Question was: ".bright_cyan(), example_use.clone().bold());
+        if example_use.clone() == "null"{
+            println!("{}","Something went wrong... Trying again".red().bold());
+            continue;
+        }
         // Get word_id
         let word_id: &str = &parsed["id"].to_string();
 
@@ -133,6 +164,7 @@ fn main() {
         let mut answear = read_from_dictionary.clone();
         let mut bylo_tlumaczone: bool = false;
 
+        println!("{}{}","Translation was: ".bright_cyan(), parsed["translations"].clone().to_string().bold());
         // Check for None
         if read_from_dictionary != "None".to_string() {
 
@@ -162,39 +194,57 @@ fn main() {
 
         // Than pause the thread for that amount of time
         thread::sleep(time::Duration::from_millis(sleep));
-
+        
+        println!("{}{}","I answeared it with: ".bright_cyan(), answear.clone().bold());
         // Finally send anwears to instaling
         let res = client.post("https://instaling.pl:443/ling2/server/actions/save_answer.php")
                 .form(&map1)
                 .send()
                 .unwrap();
-
         // Parse response json
-        let parsed = json::parse(res.text().unwrap().as_str()).unwrap();
-        let grade = parsed["grade"].to_string();
-
-        // And check if we did it corectly
-        if grade != "3" && grade != "0" {
-
-            if bylo_tlumaczone{
-
-                println!("{} {}","Was translation successfull?:".yellow(),"Yes".green().bold());
-                
-                // If translation was succesfull then write it to dictionary for later use
-                dictionary::write_to_dict(format!("{} $ {}",example_use,parsed["answershow"].to_string()));  
-
-            } else{
-
-                println!("{}","Found it in cache".green());  
-
+        let status;
+        let parsed = json::parse({
+            status = res.text_with_charset("utf-8");
+            match status {
+                Ok(t) => t,
+                Err(e) => format!("BRUH: {:?}", e),
             }
-            
-        } else{
+        }.as_str()).unwrap();
 
-            println!("{} {}","Was translation successfull?:".yellow(),"No".red().bold());
-            // If translation was unsuccesfull then write answer that was sent in response to dictionary for later use
-            dictionary::write_to_dict(format!("{} $ {}",example_use,parsed["answershow"].to_string()));
+        if !parsed.contains("BRUH"){
 
+            let grade = parsed["grade"].to_string();
+
+            // And check if we did it corectly
+            if grade != "3" && grade != "0" {
+    
+                if bylo_tlumaczone{
+    
+                    println!("{} {}","Was translation successfull?:".yellow(),"Yes".green().bold());
+                    
+                    // If translation was succesfull then write it to dictionary for later use
+                    dictionary::write_to_dict(format!("{} $ {}",example_use,parsed["answershow"].to_string()));  
+                    
+                } else{
+    
+                    println!("{}","Found it in cache".green());  
+    
+                }
+                
+            } else{
+    
+                println!("{} {}","Was translation successfull?:".yellow(),"No".red().bold());
+                // If translation was unsuccesfull then write answer that was sent in response to dictionary for later use
+                dictionary::write_to_dict(format!("{} $ {}",example_use,parsed["answershow"].to_string()));
+                println!("{}{}","It actually was: ".bright_cyan(), parsed["answershow"].clone().to_string().bold());
+    
+            }
+
+        }else {
+
+            println!("HMMM cos nie pykło");
+            println!("{}",parsed)
         }
+        
     }
 }

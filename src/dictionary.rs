@@ -33,7 +33,13 @@ pub fn read_from_dict(example_usage: String) -> String{
 
             if translate.contains(example_usage.as_str()) {
 
-                temporary_varible = translate.split(" $ ").nth(1).unwrap().to_string();
+                temporary_varible = {
+                    let this = translate.split(" $ ").nth(1);
+                    match this {
+                        Some(val) => val,
+                        None => "None",
+                    }
+                }.to_string();
                 
             }
 
