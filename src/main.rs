@@ -67,7 +67,7 @@ fn main() {
     let login = &get_from_config("account","login");
     let password = &get_from_config("account","passwd");
 
-    if Some(login) != None && Some(password) != None {
+    if login.is_empty() || password.is_empty() {
         println!("{}","The login and/or password is empty! Aborting!".bold().red());
         exit(1);
     }
