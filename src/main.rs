@@ -7,11 +7,13 @@ extern crate reqwest;
 extern crate json;
 extern crate colored;
 
+use rand::Rng;
 // Choose what functions would we use
 use rustlate::{self, Translator};
 use colored::Colorize;
 use std::fs::File;
 use std::io::Read;
+use std::process::exit;
 use std::{collections::HashMap, time::SystemTime};
 use std::{thread, time};
 use crate::config_manager::get_from_config;
@@ -54,8 +56,8 @@ fn main() {
         .build()
         .unwrap();
     }
+
     // Create client
-    
 
     // Get basic cookies
     client.get("https://instaling.pl/teacher.php?page=login").send().unwrap();
@@ -64,6 +66,11 @@ fn main() {
     let mut map = HashMap::new();
     let login = &get_from_config("account","login");
     let password = &get_from_config("account","passwd");
+
+    if Some(login) != None && Some(password) != None {
+        println!("{}","The login and/or password is empty! Aborting!".bold().red());
+        exit(1);
+    }
 
     map.insert("from", "");
     map.insert("action", "login");
@@ -129,8 +136,15 @@ fn main() {
             .unwrap();
 
         // Get response from instaling server and parse it so we can use parsed["example"] intead of manually parsing json
-        let parsed = json::parse(res.text().unwrap().as_str()).unwrap();
-        
+        let parsed_check = json::parse(res.text().unwrap().as_str());
+
+        let parsed;
+
+        match parsed_check {
+            Ok(t) => parsed = t, // Everything is ok
+            Err(_e) => panic!("{}","You might have been banned F".red().bold()), // Something went wrong might indicate ban: thanks Nicolass1000 for your sacriface
+        }
+
         // If summary isn't null then we didin't finish session yet
         if !parsed["summary"].is_null() {
 
@@ -190,17 +204,31 @@ fn main() {
 
         // Get from config how long do we need to sleep
         let sleep = get_from_config("timing","sleep_per_letter").parse::<u64>().unwrap() * answear.len() as u64;
-        let sleep = sleep + get_from_config("timing","sleep_before_sending").parse::<u64>().unwrap();
+        
+        let sleep_min = get_from_config("timing","sleep_before_sending").parse::<u64>().unwrap();
+        let sleep_max = get_from_config("timing","sleep_before_sending_max").parse::<u64>().unwrap();
+
+        // Debilo odporność
+        if sleep_min > sleep_max {
+            println!("{}","The min sleeping time before sending are bigger than max! Aborting!".bold().red());
+            break;
+        }
+
+        let sleep = sleep + rand::thread_rng().gen_range(sleep_min..sleep_max) as u64;
+
+        println!("{0}: {1}{2}", "Time to sleep (decerases sus)".blue(), sleep.to_string().white().bold(),"ms".white().bold());
 
         // Than pause the thread for that amount of time
         thread::sleep(time::Duration::from_millis(sleep));
         
         println!("{}{}","I answeared it with: ".bright_cyan(), answear.clone().bold());
+
         // Finally send anwears to instaling
         let res = client.post("https://instaling.pl:443/ling2/server/actions/save_answer.php")
                 .form(&map1)
                 .send()
                 .unwrap();
+
         // Parse response json
         let status;
         let parsed = json::parse({
@@ -234,6 +262,7 @@ fn main() {
             } else{
     
                 println!("{} {}","Was translation successfull?:".yellow(),"No".red().bold());
+
                 // If translation was unsuccesfull then write answer that was sent in response to dictionary for later use
                 dictionary::write_to_dict(format!("{} $ {}",example_use,parsed["answershow"].to_string()));
                 println!("{}{}","It actually was: ".bright_cyan(), parsed["answershow"].clone().to_string().bold());
