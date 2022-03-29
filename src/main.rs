@@ -149,6 +149,33 @@ fn main() {
         if !parsed["summary"].is_null() {
 
             println!("{}","I'm done".purple());
+            
+                    // Get unix timestamp
+            let timestamp = &SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis().to_string();
+
+            map1.insert("child_id", student_id);
+            map1.insert("date",timestamp);
+
+            // Generate next word
+            let res = client.post("https://instaling.pl/ling2/server/actions/grade_report.php")
+            .form(&map1)
+            .send()
+            .unwrap();
+
+            let status;
+            let parsed = json::parse({
+                status = res.text_with_charset("utf-8");
+                match status {
+                    Ok(t) => t,
+                    Err(e) => format!("BRUH: {:?}", e),
+                }
+            }.as_str()).unwrap();
+            println!("{:#?}",parsed);
+
+            
+            println!("{0}{1}","Work days done: ".cyan(),parsed["work_week_days"].to_string().white().bold());
+            println!("{0}{1}","Previous mark: ".cyan(),parsed["prev_mark"].to_string().white().bold());
+            println!("{0}{1}","Current mark: ".cyan(),parsed["current_mark"].to_string().white().bold());
             break;
 
         } else {
