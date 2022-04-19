@@ -36,6 +36,16 @@ pub fn get_from_config(selection: &str, name: &str) -> String {
     }
 }
 
+// Set varible to config
+pub fn set_to_config(selection: &str, name: &str, value: Option<&str>) {
+    
+    unsafe{
+        config.setstr(selection, name, value);
+        config.write("./config.conf");
+        load_config();
+    }
+}
+
 pub fn get_from_config_static(selection: &str, name: &str) -> &'static str {
 
     unsafe{
