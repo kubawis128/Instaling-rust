@@ -20,7 +20,7 @@ pub struct HandlerStruct {
     translator_struct: Translator,
     client: reqwest::blocking::Client,
     map: HashMap<String, String>,
-    student_id: String
+    pub student_id: String
 }
 pub struct Response {
     pub succ: bool,
@@ -90,18 +90,24 @@ pub fn handler_init() -> HandlerStruct{
         .unwrap();
 
     
-    let student_id = res
+    let student_id_tmp = res
         .headers()
         .values()
-        .find(|&x| x.to_str().unwrap().contains("student_id"))
+        .find(|&x| x.to_str().unwrap().contains("student_id"));
+
+    let mut student_id = "".to_string();
+    if !student_id_tmp.is_none(){
+        student_id = student_id_tmp
         .unwrap()
         .to_str()
-        .unwrap()
+        .unwrap_or("0=0")
         .split("=")
         .nth(1)
         .unwrap()
         .to_string();
-
+    }else {
+        student_id = "bruh".to_string();
+    }
     // Idk if it is needed
     client.get("https://instaling.pl:443/student/pages/mainPage.php?student_id=".to_string() + &student_id)
         .send()

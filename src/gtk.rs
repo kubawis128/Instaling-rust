@@ -63,6 +63,11 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     start_button.connect_clicked(glib::clone!(@weak window,@weak start_button => move |_| {
+        load_config();
+        if get_from_config("account","login") == "" || get_from_config("account","passwd") == ""{
+            glib::MainContext::default().spawn_local(dialog(window,"Login and password cannot be empty".to_string(),"Login".to_string()));
+            return;
+        }
         start_button.set_sensitive(false);
         login_button.set_sensitive(false);
         let angielski_radio: RadioButton = builder.object("angielski").expect("Couldn't get angielski");
@@ -75,7 +80,12 @@ fn build_ui(application: &gtk::Application) {
 
         
         let hr = handler_init();
-        
+        if hr.student_id == "bruh" {
+            glib::MainContext::default().spawn_local(dialog(window.clone(),"Login and/or password might be incorrect".to_string(),"Login".to_string()));
+            start_button.set_sensitive(true);
+            login_button.set_sensitive(true);
+            return;
+        }
         let quesion: Label = builder.object("question").expect("Couldn't get quesion");
         let translation: Label = builder.object("translation").expect("Couldn't get translation");
         let answear: Label = builder.object("answer").expect("Couldn't get answer");
@@ -136,6 +146,7 @@ async fn dialog<W: IsA<gtk::Window>>(window: W,text: String,title: String) {
         .text(&text)
         .title(&title)
         .build();
+    question_dialog.run_future().await;
     question_dialog.close();
     question_dialog.hide();
 }
