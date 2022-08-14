@@ -92,6 +92,10 @@ fn build_ui(application: &gtk::Application) {
                     println!("Done!");
                     start_button.set_sensitive(true);
                     login_button.set_sensitive(true);
+                    load_config();
+                    if get_from_config("account","remember") == "false" {
+                        set_to_config("account","passwd",Some(""));
+                    }
                     glib::MainContext::default().spawn_local(dialog(window,res.dialog_message,res.dialog_title));
                     break
                 }else if res.ignore{
