@@ -1,6 +1,7 @@
 // Import my modules
 mod config_manager;
 mod dictionary;
+mod handler;
 
 // Import external modules
 extern crate reqwest;
@@ -297,7 +298,6 @@ fn main() {
             }
 
         }else {
-
             println!("HMMM cos nie pykło");
             println!("{}",parsed)
         }
