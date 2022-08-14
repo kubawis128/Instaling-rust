@@ -41,7 +41,7 @@ pub fn set_to_config(selection: &str, name: &str, value: Option<&str>) {
     
     unsafe{
         config.setstr(selection, name, value);
-        config.write("./config.conf");
+        config.write("./config.conf").unwrap();
         load_config();
     }
 }

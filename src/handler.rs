@@ -12,12 +12,11 @@ extern crate colored;
 use colored::Colorize;
 use gtk::glib::timeout_future_seconds;
 use std::{collections::HashMap, time::SystemTime};
-use std::{thread, time};
 use crate::config_manager::get_from_config;
 use rand::Rng;
-
+#[allow(dead_code)]
 #[derive(Clone)]
-pub struct Handler_Struct {
+pub struct HandlerStruct {
     translator_struct: Translator,
     client: reqwest::blocking::Client,
     map: HashMap<String, String>,
@@ -51,7 +50,7 @@ impl Response {
     }
 }
 
-pub fn handler_init() -> Handler_Struct{
+pub fn handler_init() -> HandlerStruct{
     config_manager::load_config();
 
     // Init translator
@@ -123,7 +122,7 @@ pub fn handler_init() -> Handler_Struct{
         .send()
         .unwrap();
 
-    Handler_Struct{
+    HandlerStruct{
         translator_struct: translator_struct,
         client: client,
         map: map,
@@ -132,7 +131,7 @@ pub fn handler_init() -> Handler_Struct{
 }
 
 
-pub async fn loop_de_loop(hr: Handler_Struct) -> Response{
+pub async fn loop_de_loop(hr: HandlerStruct) -> Response{
 
     // Get unix timestamp
     let timestamp = &SystemTime::now()

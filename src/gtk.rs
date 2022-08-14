@@ -6,9 +6,9 @@ mod handler;
 mod dictionary;
 mod config_manager;
 mod translator_patched;
-use std::thread;
 use crate::glib::MainContext;
 use crate::glib::clone;
+
 fn main() {
     let application = gtk::Application::new(Some("com.github.gtk-rs.examples.grid"), Default::default());
     application.connect_activate(build_ui);
@@ -62,8 +62,6 @@ fn build_ui(application: &gtk::Application) {
         }));
     }));
 
-    let mut progress_num = 0.0;
-
     start_button.connect_clicked(glib::clone!(@weak window,@weak start_button => move |_| {
         start_button.set_sensitive(false);
         login_button.set_sensitive(false);
@@ -71,8 +69,9 @@ fn build_ui(application: &gtk::Application) {
         let niemiecki_radio: RadioButton = builder.object("niemiecki").expect("Couldn't get angielski");
         
         // Save selected language
-        //let selected_lang = if angielski_radio.is_active() { "en" } else if niemiecki_radio.is_active() { "de" } else { "None" };
-        //set_to_config("translator", "to", Some(selected_lang));
+        load_config();
+        let selected_lang = if angielski_radio.is_active() { "en" } else if niemiecki_radio.is_active() { "de" } else { "None" };
+        set_to_config("translator", "to", Some(selected_lang));
 
         
         let hr = handler_init();
@@ -89,13 +88,13 @@ fn build_ui(application: &gtk::Application) {
                 //run this async
                 let res: Response = loop_de_loop(hr.clone()).await;
                             
-                if (res.dialog_show){
+                if res.dialog_show{
                     println!("Done!");
                     start_button.set_sensitive(true);
                     login_button.set_sensitive(true);
                     glib::MainContext::default().spawn_local(dialog(window,res.dialog_message,res.dialog_title));
                     break
-                }else if (res.ignore){
+                }else if res.ignore{
 
                 }else{
                     quesion.set_text(&res.quesion);
@@ -133,8 +132,6 @@ async fn dialog<W: IsA<gtk::Window>>(window: W,text: String,title: String) {
         .text(&text)
         .title(&title)
         .build();
-
-    let answer = question_dialog.run_future().await;
     question_dialog.close();
     question_dialog.hide();
 }
