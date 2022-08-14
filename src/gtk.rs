@@ -131,10 +131,6 @@ fn build_ui(application: &gtk::Application) {
         }));
         
     }));
-    /*
-    status_image.set_icon_name(Some("dialog-close"));
-    status_image.set_icon_name(Some("dialog-ok"));
-    */
     window.show_all();
 }
 
