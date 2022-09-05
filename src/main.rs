@@ -2,7 +2,7 @@
 mod config_manager;
 mod dictionary;
 mod handler;
-
+mod translator_patched;
 // Import external modules
 extern crate reqwest;
 extern crate json;

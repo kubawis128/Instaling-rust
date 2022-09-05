@@ -14,13 +14,16 @@ use gtk::glib::timeout_future_seconds;
 use std::{collections::HashMap, time::SystemTime};
 use crate::config_manager::get_from_config;
 use rand::Rng;
-#[allow(dead_code)]
+
 #[derive(Clone)]
 pub struct HandlerStruct {
     translator_struct: Translator,
     client: reqwest::blocking::Client,
     map: HashMap<String, String>,
-    pub student_id: String
+    pub student_id: String,
+    pub dialog_show: bool,
+    pub dialog_title: String,
+    pub dialog_message: String
 }
 pub struct Response {
     pub succ: bool,
@@ -51,6 +54,7 @@ impl Response {
 }
 
 pub fn handler_init() -> HandlerStruct{
+
     config_manager::load_config();
 
     // Init translator
@@ -65,39 +69,74 @@ pub fn handler_init() -> HandlerStruct{
         .build()
         .unwrap();
 
-    let mut map = HashMap::new();
+    let map = HashMap::new();
+
     let login = get_from_config("account","login").clone();
     let password = get_from_config("account","passwd");
 
-    map.insert("from".to_string(), "".to_string());
-    map.insert("action".to_string(), "login".to_string());
-    map.insert("log_password".to_string(), password);
-    map.insert("log_email".to_string(), login);
+    let mut hs = HandlerStruct{
+            translator_struct: translator_struct,
+            client: client,
+            map: map,
+            student_id: "to be filled".to_string(),
+            dialog_show: false,
+            dialog_title: "".to_string(),
+            dialog_message: "".to_string()
+    };
+
+    hs.map.insert("from".to_string(), "".to_string());
+    hs.map.insert("action".to_string(), "login".to_string());
+    hs.map.insert("log_password".to_string(), password);
+    hs.map.insert("log_email".to_string(), login);
+
     
+
     // Login
-    client.post("https://instaling.pl:443/teacher.php?page=teacherActions")
-        .form(&map)
-        .send()
-        .unwrap();
-    client.post("https://instaling.pl:443/teacher.php?page=teacherActions")
-        .form(&map)
-        .send()
-        .unwrap();
+    // To jest dramat
+    // Brzydkie w chuj i kopiuj-wklej
+    // ale działa więc ¯\_(ツ)_/¯
+    let post = || -> Result<reqwest::blocking::Response, reqwest::Error> {
+        Ok(hs.client.post("https://instaling.pl:443/teacher.php?page=teacherActions")
+        .form(&hs.map)
+        .send()?)
+    };
 
-        // Get child_id
-    let res = client.get("https://instaling.pl:443/learning/dispatcher.php?from=")
-        .send()
-        .unwrap();
+    match post() {
+        Ok(ok) => ok,
+        Err(e) => {return send_dialog_handler_init(hs,e)}
+    };
 
-    
+        
+    let post = || -> Result<reqwest::blocking::Response, reqwest::Error> {
+        Ok(hs.client.post("https://instaling.pl:443/teacher.php?page=teacherActions")
+        .form(&hs.map)
+        .send()?)
+    };
+    match post() {
+        Ok(ok) => ok,
+        Err(e) => {return send_dialog_handler_init(hs,e)}
+    };
+
+
+    let get = || -> Result<reqwest::blocking::Response, reqwest::Error> {
+        Ok(hs.client.get("https://instaling.pl:443/learning/dispatcher.php?from=")
+        .send()?)
+    };
+
+    let res = match get() {
+        Ok(ok) => ok,
+        Err(e) => {return send_dialog_handler_init(hs,e)}
+    };
+
     let student_id_tmp = res
         .headers()
         .values()
         .find(|&x| x.to_str().unwrap().contains("student_id"));
 
-    let mut student_id = "".to_string();
+
     if !student_id_tmp.is_none(){
-        student_id = student_id_tmp
+
+        hs.student_id = student_id_tmp
         .unwrap()
         .to_str()
         .unwrap_or("0=0")
@@ -105,35 +144,45 @@ pub fn handler_init() -> HandlerStruct{
         .nth(1)
         .unwrap()
         .to_string();
+
     }else {
-        student_id = "bruh".to_string();
+
+        hs.student_id = "bruh".to_string();
+
     }
+
     // Idk if it is needed
-    client.get("https://instaling.pl:443/student/pages/mainPage.php?student_id=".to_string() + &student_id)
-        .send()
-        .unwrap();
+    let get = || -> Result<reqwest::blocking::Response, reqwest::Error> {
+        Ok(hs.client.get("https://instaling.pl:443/student/pages/mainPage.php?student_id=".to_string() + &hs.student_id)
+        .send()?)
+    };
+
+    match get() {
+        Ok(ok) => ok,
+        Err(e) => {return send_dialog_handler_init(hs,e)}
+    };
 
     // Clear map
-    map.clear();
+    hs.map.clear();
 
     // And set new values
-    map.insert("child_id".to_string(), student_id.clone());
-    map.insert("repeat".to_string(), "".to_string());
-    map.insert("start".to_string(), "".to_string());
-    map.insert("end".to_string(), "".to_string());
+    hs.map.insert("child_id".to_string(), hs.student_id.clone());
+    hs.map.insert("repeat".to_string(), "".to_string());
+    hs.map.insert("start".to_string(), "".to_string());
+    hs.map.insert("end".to_string(), "".to_string());
 
     // Init Learning session
-    client.post("https://instaling.pl:443/ling2/server/actions/init_session.php")
-        .form(&map)
-        .send()
-        .unwrap();
+    let post = || -> Result<reqwest::blocking::Response, reqwest::Error> {
+        Ok(hs.client.post("https://instaling.pl:443/ling2/server/actions/init_session.php")
+        .form(&hs.map)
+        .send()?)
+    };
+    match post() {
+        Ok(ok) => ok,
+        Err(e) => {return send_dialog_handler_init(hs,e)}
+    };
 
-    HandlerStruct{
-        translator_struct: translator_struct,
-        client: client,
-        map: map,
-        student_id: student_id
-    }
+    hs
 }
 
 
@@ -149,12 +198,17 @@ pub async fn loop_de_loop(hr: HandlerStruct) -> Response{
 
     map1.insert("child_id", hr.student_id.clone());
     map1.insert("date",timestamp.to_string());
-
-    // Generate next word
-    let res = hr.client.post("https://instaling.pl:443/ling2/server/actions/generate_next_word.php")
+    
+    let post = || -> Result<reqwest::blocking::Response, reqwest::Error> {
+        Ok(hr.client.post("https://instaling.pl:443/ling2/server/actions/generate_next_word.php")
         .form(&map1)
-        .send()
-        .unwrap(); 
+        .send()?)
+    };
+    
+    let res = match post() {
+        Ok(ok) => ok,
+        Err(e) => {return send_dialog_response_handler(e)}
+    };
     
     // Get response from instaling server and parse it so we can use parsed["example"] intead of manually parsing json
     let parsed_check = json::parse(res.text()
@@ -176,11 +230,17 @@ pub async fn loop_de_loop(hr: HandlerStruct) -> Response{
         map1.insert("child_id", hr.student_id.clone());
         map1.insert("date",timestamp);
 
-        // Generate next word
-        let res = hr.client.post("https://instaling.pl/ling2/server/actions/grade_report.php")
-        .form(&map1)
-        .send()
-        .unwrap();
+        // Get grades
+        let post = || -> Result<reqwest::blocking::Response, reqwest::Error> {
+            Ok(hr.client.post("https://instaling.pl/ling2/server/actions/grade_report.php")
+            .form(&map1)
+            .send()?)
+        };
+        
+        let res = match post() {
+            Ok(ok) => ok,
+            Err(e) => {return send_dialog_response_handler(e)}
+        };
 
         let status;
         let parsed = json::parse({
@@ -255,10 +315,16 @@ pub async fn loop_de_loop(hr: HandlerStruct) -> Response{
         //thread::sleep(time::Duration::from_millis(sleep));
         
         // Finally send anwears to instaling
-        let res = hr.client.post("https://instaling.pl:443/ling2/server/actions/save_answer.php")
-                .form(&map1)
-                .send()
-                .unwrap();
+        let post = || -> Result<reqwest::blocking::Response, reqwest::Error> {
+            Ok(hr.client.post("https://instaling.pl:443/ling2/server/actions/save_answer.php")
+            .form(&map1)
+            .send()?)
+        };
+        
+        let res = match post() {
+            Ok(ok) => ok,
+            Err(e) => {return send_dialog_response_handler(e)}
+        };
 
         // Parse response json
         let status;
@@ -319,4 +385,18 @@ pub async fn loop_de_loop(hr: HandlerStruct) -> Response{
             response_handler
         }
     }
+}
+
+pub fn send_dialog_handler_init(mut hs: HandlerStruct, e: reqwest::Error) -> HandlerStruct{
+    hs.dialog_show = true;
+    hs.dialog_title = "Error Occured".to_string();
+    hs.dialog_message = e.to_string();
+    hs
+}
+pub fn send_dialog_response_handler(e: reqwest::Error) -> Response{
+    let mut res: Response = Response::new();
+    res.dialog_show = true;
+    res.dialog_title = "Error Occured".to_string();
+    res.dialog_message = e.to_string();
+    res
 }

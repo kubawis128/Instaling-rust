@@ -1,3 +1,6 @@
+// Dont show cmd on windows
+#![windows_subsystem = "windows"]
+
 use gtk::*;
 use gtk::prelude::*;
 use crate::config_manager::*;
@@ -17,6 +20,7 @@ fn main() {
 
 fn build_ui(application: &gtk::Application) {
     // Create builder and application window
+
     let glade_src = include_str!("glade.ui");
     let builder = Builder::from_string(glade_src);
     let window: ApplicationWindow = builder.object("window").expect("Couldn't get window");
@@ -28,20 +32,27 @@ fn build_ui(application: &gtk::Application) {
 
     window.set_application(Some(application));
 
+    // Add click functionality
     login_button.connect_clicked(glib::clone!(@weak window=> move |_| {
+        // Load config
         load_config();
+
+        // Load and show login dialog
         let builder1 = Builder::from_string(include_str!("glade.ui"));
         let login_dialog_widget: Widget = builder1.object("loginDialog").unwrap();
+        
         login_dialog_widget.show_all();
-
+        
+        // Get buttons
         let close_button: Button = builder1.object("cancel").expect("Couldn't get cancel");
         let login_button: Button = builder1.object("login").expect("Couldn't get login");
 
-
+        // Hide the windows on close button click
         close_button.connect_clicked(glib::clone!(@weak login_dialog_widget => move |_| {
             login_dialog_widget.hide();
         }));
         
+
         login_button.connect_clicked(glib::clone!(@weak login_dialog_widget => move |_| {
             load_config();
             
@@ -63,11 +74,19 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     start_button.connect_clicked(glib::clone!(@weak window,@weak start_button => move |_| {
+
         load_config();
+
         if get_from_config("account","login") == "" || get_from_config("account","passwd") == ""{
             glib::MainContext::default().spawn_local(dialog(window,"Login and password cannot be empty".to_string(),"Login".to_string()));
             return;
         }
+        let progress_label: Label = builder.object("progress").expect("Couldn't get progress_label");
+        let progress_bar: ProgressBar = builder.object("progressprogressbar").expect("Couldn't get progress_bar");
+        
+        progress_label.set_text("0/20");
+        progress_bar.set_fraction(0.0);
+
         start_button.set_sensitive(false);
         login_button.set_sensitive(false);
         let angielski_radio: RadioButton = builder.object("angielski").expect("Couldn't get angielski");
@@ -80,6 +99,12 @@ fn build_ui(application: &gtk::Application) {
 
         
         let hr = handler_init();
+        if hr.dialog_show{
+            start_button.set_sensitive(true);
+            login_button.set_sensitive(true);
+            glib::MainContext::default().spawn_local(dialog(window.clone(),hr.dialog_message.clone(),hr.dialog_title.clone()));
+            return;
+        }
         if hr.student_id == "bruh" {
             glib::MainContext::default().spawn_local(dialog(window.clone(),"Login and/or password might be incorrect".to_string(),"Login".to_string()));
             start_button.set_sensitive(true);
@@ -89,8 +114,6 @@ fn build_ui(application: &gtk::Application) {
         let quesion: Label = builder.object("question").expect("Couldn't get quesion");
         let translation: Label = builder.object("translation").expect("Couldn't get translation");
         let answear: Label = builder.object("answer").expect("Couldn't get answer");
-        let progress_label: Label = builder.object("progress").expect("Couldn't get progress_label");
-        let progress_bar: ProgressBar = builder.object("progressprogressbar").expect("Couldn't get progress_bar");
 
         let main_context = MainContext::default();
         main_context.spawn_local(clone!(@weak quesion,@weak status_image,@weak login_button => async move {
